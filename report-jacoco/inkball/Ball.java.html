@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Ball.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">scaffold</a> &gt; <a href="index.source.html" class="el_package">inkball</a> &gt; <span class="el_source">Ball.java</span></div><h1>Ball.java</h1><pre class="source lang-java linenums">package inkball;
+
+import processing.core.PImage;
+import processing.core.PVector;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
+
+/**
+ * Represents a ball in the Inkball game.
+ * 
+ * A Ball has a color and a position on the game board. It can move 
+ * in response to user input and game physics, and it interacts 
+ * with tiles and holes on the board. Balls can be spawned at specific 
+ * locations and can change their behavior based on the tiles they 
+ * encounter.
+ * 
+ * Responsibilities of the Ball class include:
+ * - Managing the position, velocity, and radius of the ball.
+ * - Checking for collisions with walls and holes.
+ * - Drawing the ball on the game board.
+ * - Applying physics such as reflection and attraction based on nearby tiles.
+*/
+public class Ball {
+
+    public char colour; // The color of the ball, used to determine its sprite and behavior
+    public float x; // X index of the tile on the board
+    public float y; // Y index of the tile on the board
+
+    public boolean spawned; // Flag to indicate if the ball has been spawned
+    public boolean sunk; // Flag to indicate if the ball has sunk into a hole
+    public float radius; // Radius of the ball (based on the ball image)
+    public float spawnOffset; // Offset to center the ball on its spawn tile
+
+    public float xVel; // X velocity of the ball
+    public float yVel; // Y velocity of the ball
+
+    private float size; // The current size of the ball
+    private float default_size; // The constant size of the ball (used for resetting size)
+
+    /**
+     * Constructor for the Ball object.
+     * @param colour The color of the ball, which determines its image and behavior.
+    */
+<span class="fc" id="L47">    public Ball(char colour) {</span>
+<span class="fc" id="L48">        this.colour = colour;</span>
+<span class="fc" id="L49">        spawned = false;</span>
+<span class="fc" id="L50">        sunk = false;</span>
+<span class="fc" id="L51">        radius = getDimensions(); // Set the radius based on the ball's image dimensions</span>
+<span class="fc" id="L52">        spawnOffset = 0.5f - (radius / App.CELLSIZE); // Offset to center the ball in the tile</span>
+<span class="fc" id="L53">        size = radius*2;</span>
+<span class="fc" id="L54">        default_size = radius*2;</span>
+<span class="fc" id="L55">    }</span>
+
+    /**
+     * Retrieves the dimensions (radius) of the ball based on its sprite.
+     * @return The radius of the ball.
+     */
+    public float getDimensions() {
+<span class="fc" id="L62">        float radius = 0;</span>
+        try {
+            // Load the ball image from resources based on the ball color
+<span class="fc" id="L65">            InputStream input = getClass().getResourceAsStream(&quot;/inkball/ball&quot; + colour + &quot;.png&quot;);</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">            if (input != null) {</span>
+<span class="fc" id="L67">                BufferedImage ballImage = ImageIO.read(input);</span>
+<span class="fc" id="L68">                radius = ballImage.getWidth() / 2; // Set radius as half the width of the image</span>
+<span class="fc" id="L69">            } else {</span>
+<span class="nc" id="L70">                System.out.println(&quot;Error: Resource not found&quot;);</span>
+            }
+<span class="nc" id="L72">        } catch (IOException e) {</span>
+<span class="nc" id="L73">            System.out.println(&quot;Error loading image&quot;);</span>
+<span class="nc" id="L74">            e.printStackTrace();</span>
+<span class="fc" id="L75">        }</span>
+<span class="fc" id="L76">        return radius;</span>
+    }
+
+    /**
+     * Spawns the ball at the specified coordinates.
+     * Sets the initial position and random velocity for the ball.
+     * @param x The X-coordinate of the spawn location.
+     * @param y The Y-coordinate of the spawn location.
+    */
+    public void spawn(int x, int y) {
+<span class="fc" id="L86">        this.x = x + spawnOffset;</span>
+<span class="fc" id="L87">        this.y = y + spawnOffset;</span>
+
+        // Set random initial velocities in both X and Y directions
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        xVel = (App.random.nextInt(2) == 0) ? -2 : 2;</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">        yVel = (App.random.nextInt(2) == 0) ? -2 : 2;</span>
+
+<span class="fc" id="L93">        spawned = true;</span>
+<span class="fc" id="L94">    }</span>
+
+    /**
+     * Checks for collisions with walls and flips velocity if necessary.
+     * @param app The main App object.
+     * @param xOffset Offset in X direction for collision detection.
+     * @param yOffset Offset in Y direction for collision detection.
+     * @param velToFlip The velocity to be flipped (either X or Y).
+     * @param postFlipDir The desired direction after the flip (positive for right/down).
+     * @return The updated velocity after collision handling.
+    */
+    public float wallCollisionCheck(App app, float xOffset, float yOffset, float velToFlip, int postFlipDir) { // postFlipDir has down and right as positive
+<span class="fc" id="L106">        int xTileVal = (int) (x + xOffset/App.CELLSIZE);</span>
+<span class="fc" id="L107">        int yTileVal = (int) (y + yOffset/App.CELLSIZE);</span>
+<span class="fc" id="L108">        char tileType = app.board[yTileVal][xTileVal].type;</span>
+
+<span class="fc" id="L110">        char prevTileType = ' ';</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (xTileVal - 1 &gt;= 0) {</span>
+<span class="fc" id="L112">            prevTileType = app.board[yTileVal][xTileVal - 1].type;</span>
+        }
+
+        // Check for collisions with walls and update ball color based on wall type
+<span class="pc bpc" id="L116" title="1 of 10 branches missed.">        if ((Character.isDigit(tileType) &amp;&amp; (prevTileType != 'H' &amp;&amp; prevTileType != 'B' &amp;&amp; prevTileType != 'A')) || tileType == 'X') {</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            if (Math.abs(velToFlip) * postFlipDir == velToFlip * -1) { // Flip the velocity if necessary</span>
+<span class="fc" id="L118">                velToFlip *= -1;</span>
+            }
+<span class="fc bfc" id="L120" title="All 2 branches covered.">            if (tileType != 'X') {</span>
+<span class="fc" id="L121">                colour = tileType; // Change ball color based on tile type</span>
+            }
+        }
+
+        // Handle accelerator tiles ('A') which change ball speed
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (tileType == 'A') {</span>
+<span class="fc" id="L127">            char nextTile = app.board[yTileVal][xTileVal + 1].type;</span>
+<span class="fc" id="L128">            float accel = 0.2f; // Acceleration factor</span>
+<span class="pc bpc" id="L129" title="1 of 5 branches missed.">            switch (nextTile) {</span>
+<span class="fc" id="L130">                case '1': yVel -= accel; break; // Accelerate upwards</span>
+<span class="fc" id="L131">                case '2': xVel += accel; break; // Accelerate right</span>
+<span class="fc" id="L132">                case '3': yVel += accel; break; // Accelerate downwards</span>
+<span class="fc" id="L133">                case '4': xVel -= accel; break; // Accelerate left</span>
+            }
+        }
+<span class="fc" id="L136">        return velToFlip;</span>
+    }
+
+    /**
+     * Checks if the ball has collided with a hole and handles sinking behavior.
+     * @param app The main App object.
+     * @param xBallCentre The X-coordinate of the ball's center.
+     * @param yBallCentre The Y-coordinate of the ball's center.
+    */
+    public void holeCollsionCheck(App app, float xBallCentre, float yBallCentre) {
+        // Check surrounding tiles to identify a hole
+<span class="fc" id="L147">        int xPos = (int) x;</span>
+<span class="fc" id="L148">        int yPos = (int) y;</span>
+<span class="fc" id="L149">        Tile tile = app.board[yPos][xPos];</span>
+        // Adjust position if ball is near a hole
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (tile.type == 'E') {</span>
+<span class="fc" id="L152">            yPos -= 1;</span>
+<span class="fc" id="L153">            tile = app.board[yPos][xPos];</span>
+        }
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        if (Character.isDigit(tile.type)) {</span>
+<span class="fc" id="L156">            xPos -= 1;</span>
+<span class="fc" id="L157">            tile = app.board[yPos][xPos];</span>
+        }
+
+        // The ball is near a hole
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (tile.type == 'H') {</span>
+<span class="fc" id="L162">            int xHolePos = tile.x + 1;</span>
+<span class="fc" id="L163">            int yHolePos = tile.y + 1;</span>
+
+            // Calculate the distance from the ball to the hole
+<span class="fc" id="L166">            float xHoleVector = xHolePos - xBallCentre;</span>
+<span class="fc" id="L167">            float yHoleVector = yHolePos - yBallCentre;</span>
+<span class="fc" id="L168">            double distanceToHole = Math.sqrt(Math.pow(xHoleVector, 2) + Math.pow(yHoleVector, 2));</span>
+
+            // Handle scoring if the ball is close enough to the hole
+<span class="fc bfc" id="L171" title="All 2 branches covered.">            if (distanceToHole &lt;= 0.3f) {</span>
+                // Ball sinks into the correct hole, increase score
+<span class="pc bpc" id="L173" title="2 of 6 branches missed.">                if (app.board[yPos][xPos + 1].type == colour || app.board[yPos][xPos + 1].type == '0' || colour == '0') {</span>
+<span class="fc" id="L174">                    System.out.println(&quot;score up&quot;);</span>
+<span class="fc" id="L175">                    app.currScore += app.scoreInc[(int) (colour - '0')];</span>
+<span class="fc" id="L176">                    boolean thisBallFound = false;</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                    for (int i = 0; i &lt; app.balls.length; i++) { // Get position of this ball, shift all one over, then add to end</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">                        if (app.balls[i] == this) {</span>
+<span class="fc" id="L179">                            thisBallFound = true;</span>
+                        }
+<span class="pc bpc" id="L181" title="2 of 4 branches missed.">                        if (thisBallFound &amp;&amp; i + 1 &lt; app.balls.length) {</span>
+<span class="nc" id="L182">                            app.balls[i] = app.balls[i+1];</span>
+                        }
+                    }
+<span class="fc" id="L185">                    app.balls[app.balls.length - 1  - app.rightHoleCount] = this;</span>
+<span class="fc" id="L186">                    app.rightHoleCount += 1;</span>
+<span class="fc" id="L187">                    sunk = true;</span>
+<span class="fc" id="L188">                }</span>
+                // Ball sinks into the wrong hole, decrease score
+                else {
+<span class="fc" id="L191">                    System.out.println(&quot;score down&quot;);</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">                    if (app.currScore - app.scoreDec[(int) (colour - '0')] &lt; 0) {</span>
+<span class="fc" id="L193">                        app.currScore = 0;</span>
+                    }
+                    else {
+<span class="nc" id="L196">                        app.currScore -= app.scoreDec[(int) (colour - '0')];</span>
+                    }
+<span class="fc" id="L198">                    boolean thisBallFound = false;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">                    for (int i = 0; i &lt; app.balls.length; i++) { // Get position of this ball, shift all one over, then add to end</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">                        if (app.balls[i] == this) {</span>
+<span class="nc" id="L201">                            thisBallFound = true;</span>
+                        }
+<span class="pc bpc" id="L203" title="3 of 4 branches missed.">                        if (thisBallFound &amp;&amp; i + 1 &lt; app.balls.length) {</span>
+<span class="nc" id="L204">                            app.balls[i] = app.balls[i+1];</span>
+                        }
+                    }
+<span class="fc" id="L207">                    app.balls[app.balls.length - 1  - app.rightHoleCount] = this;</span>
+<span class="fc" id="L208">                    spawned = false;</span>
+<span class="fc" id="L209">                    app.wrongHoleCount += 1;</span>
+<span class="fc" id="L210">                }</span>
+            }
+            // Ball is near the hole, apply attraction force
+<span class="fc bfc" id="L213" title="All 2 branches covered.">            else if (distanceToHole &lt;= 1) {</span>
+<span class="fc" id="L214">                xVel += xHoleVector * 0.5f;</span>
+<span class="fc" id="L215">                yVel += yHoleVector * 0.5f;</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">                if (distanceToHole &lt;= 0.6f) {</span>
+<span class="fc" id="L217">                    xVel += xHoleVector;</span>
+<span class="fc" id="L218">                    yVel += yHoleVector;</span>
+                }
+<span class="fc" id="L220">                size = (float) distanceToHole * default_size;</span>
+            }
+<span class="fc" id="L222">        }</span>
+        // Reset ball size if not near a hole
+        else {
+<span class="fc" id="L225">            size = default_size;</span>
+        }
+<span class="fc" id="L227">    }</span>
+
+    /**
+     * Draws the ball on the game board and updates its position and velocity.
+     * @param app The main App object.
+    */
+    public void draw(App app) {
+        // If the ball hasn't been spawned yet, spawn it at a random spawner location
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">        if (!spawned) {</span>
+<span class="nc" id="L236">            int spawner = App.random.nextInt(app.spawnerCount);</span>
+<span class="nc" id="L237">            int[] spawnLoc = app.spawnLoc[spawner];</span>
+<span class="nc" id="L238">            spawn(spawnLoc[0], spawnLoc[1]);</span>
+        }
+
+        // Draw the ball sprite
+<span class="fc" id="L242">        PImage ball = app.getSprite(&quot;ball&quot; + colour);</span>
+<span class="fc" id="L243">        app.image(ball, x * App.CELLSIZE, y * App.CELLSIZE + App.TOPBAR, size, size);</span>
+
+        // If the game is not paused, update ball's position based on its velocity
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        if (!app.paused) {</span>
+<span class="fc" id="L247">            x += xVel / App.CELLSIZE;</span>
+<span class="fc" id="L248">            y += yVel / App.CELLSIZE;</span>
+        }
+
+        // Check for collisions with walls and adjust velocity accordingly
+<span class="fc" id="L252">        yVel = wallCollisionCheck(app, radius, 0, yVel, 1); // Top check</span>
+<span class="fc" id="L253">        yVel = wallCollisionCheck(app, radius, radius*2, yVel, -1); // Bottom Check</span>
+<span class="fc" id="L254">        xVel = wallCollisionCheck(app, 0, radius, xVel, 1); // Right Check</span>
+<span class="fc" id="L255">        xVel = wallCollisionCheck(app, radius*2, radius, xVel, -1); // Left Check</span>
+        
+        // Check if near hole and apply required logic
+<span class="fc" id="L258">        holeCollsionCheck(app, x + spawnOffset, y + spawnOffset);</span>
+
+        // Check if ball is close to line, and reflect bounce based on normal vector if touching
+        PVector[] ballClose;
+<span class="fc bfc" id="L262" title="All 2 branches covered.">        for (Line l : app.lines) {</span>
+<span class="fc" id="L263">            ballClose = l.isNearLine(x * App.CELLSIZE + radius, y * App.CELLSIZE + App.TOPBAR + radius, (int) radius + 5); // x + xOffset/App.CELLSIZE</span>
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">            if (ballClose != null) {</span>
+                // Get normal vector of close line segment
+<span class="fc" id="L266">                PVector lineDir = PVector.sub(ballClose[1], ballClose[0]);</span>
+<span class="fc" id="L267">                PVector normal = new PVector(-lineDir.y, lineDir.x);</span>
+<span class="fc" id="L268">                normal.normalize();</span>
+
+                // Acquire new velocity after bounce
+<span class="fc" id="L271">                PVector velocity = new PVector(xVel, yVel);</span>
+<span class="fc" id="L272">                float dotProduct = PVector.dot(velocity, normal);</span>
+<span class="fc" id="L273">                PVector reflection = PVector.sub(velocity, PVector.mult(normal, 2 * dotProduct));</span>
+
+<span class="fc" id="L275">                xVel = reflection.x;</span>
+<span class="fc" id="L276">                yVel = reflection.y;</span>
+
+                // Remove the line
+<span class="fc" id="L279">                app.lines.remove(l);</span>
+<span class="fc" id="L280">                break;</span>
+            }
+<span class="nc" id="L282">        }</span>
+<span class="fc" id="L283">    }</span>
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

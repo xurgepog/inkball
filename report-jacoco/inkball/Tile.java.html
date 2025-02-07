@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Tile.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">scaffold</a> &gt; <a href="index.source.html" class="el_package">inkball</a> &gt; <span class="el_source">Tile.java</span></div><h1>Tile.java</h1><pre class="source lang-java linenums">package inkball;
+
+import processing.core.PImage;
+
+/**
+ * Represents a tile on the game board in the Inkball game.
+ * 
+ * A Tile can represent different game elements such as walls, holes, 
+ * entry points, and balls. Each tile is identified by a type, 
+ * which determines its behavior and appearance in the game.
+ * 
+ * Responsibilities of the Tile class include:
+ * - Storing the type and position of the tile.
+ * - Drawing the tile on the game board.
+ * - Handling specific behaviors based on the tile type, such as 
+ *   spawning balls or defining entry points.
+*/
+public class Tile {
+    // Tile properties
+    public char type; // Type of the tile, represented by a character
+    public int x; // X index of the tile on the board
+    public int y; // Y index of the tile on the board
+
+<span class="fc" id="L24">    private char HOLE_FLAG = 'E'; // Special flag for tiles that are part of a hole</span>
+<span class="fc" id="L25">    private boolean spawned = false; // Flag to track whether a ball has been spawned on this tile</span>
+
+    /**
+        * Constructor for the Tile object.
+        * @param type The character representing the type of the tile ('B', 'S', etc.).
+        * @param x The x-coordinate of the tile on the board.
+        * @param y The y-coordinate of the tile on the board.
+    */
+<span class="fc" id="L33">    public Tile(char type, int x, int y) {</span>
+<span class="fc" id="L34">        this.type = type;</span>
+<span class="fc" id="L35">        this.x = x;</span>
+<span class="fc" id="L36">        this.y = y;</span>
+<span class="fc" id="L37">    }</span>
+
+    /**
+        * Draw the tile on the board.
+        * @param app The PApplet object used for drawing.
+        * @return boolean Whether the tile needs to be skipped (e.g., if it spans multiple cells).
+    */
+    public boolean draw(App app) {
+        // Load the default tile sprite
+<span class="fc" id="L46">        PImage tile = app.getSprite(&quot;tile&quot;);</span>
+<span class="fc" id="L47">        boolean skipNext = false; // Flag to determine if the next tile should not be checked</span>
+
+        // If the tile type is a digit load the corresponding wall sprite
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (Character.isDigit(type)) {</span>
+<span class="fc" id="L51">            tile = app.getSprite(&quot;wall&quot; + type);</span>
+        }
+        // Switch on the tile type to determine specific behaviors
+<span class="fc bfc" id="L54" title="All 6 branches covered.">        switch (type) {</span>
+            case 'X':
+<span class="fc" id="L56">                tile = app.getSprite(&quot;wall0&quot;);               </span>
+<span class="fc" id="L57">                break;</span>
+            case 'S':
+<span class="fc" id="L59">                tile = app.getSprite(&quot;entrypoint&quot;);</span>
+<span class="fc" id="L60">                break;</span>
+            case 'H':
+<span class="fc" id="L62">                tile = app.getSprite(&quot;hole&quot; + app.board[y][x+1].type);</span>
+<span class="fc" id="L63">                skipNext = true;</span>
+<span class="fc" id="L64">                app.board[y+1][x].type = HOLE_FLAG; // won't draw these tiles</span>
+<span class="fc" id="L65">                app.board[y+1][x+1].type = HOLE_FLAG;</span>
+<span class="fc" id="L66">                break;</span>
+            case 'B':
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                if (!spawned) {</span>
+<span class="fc" id="L69">                    app.balls[app.extraBallCount] = new Ball(app.board[y][x+1].type);</span>
+<span class="fc" id="L70">                    app.balls[app.extraBallCount].spawn(x, y);</span>
+<span class="fc" id="L71">                    app.extraBallCount++;</span>
+                }
+<span class="fc" id="L73">                skipNext = true;</span>
+<span class="fc" id="L74">                break;</span>
+            case 'A':
+<span class="fc" id="L76">                tile = app.getSprite(&quot;acel&quot; + app.board[y][x+1].type);</span>
+<span class="fc" id="L77">                skipNext = true;</span>
+        }
+        // Draw the skipped tile as blank
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (skipNext) {</span>
+<span class="fc" id="L81">            app.image(app.getSprite(&quot;tile&quot;), (x+1) * App.CELLSIZE, y * App.CELLSIZE + App.TOPBAR); // draws tile for next then skips it to avoid number being read as wall type</span>
+        }
+
+         // If the tile isn't a part of a hole, draw it at its position
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (type != 'E') {</span>
+<span class="fc" id="L86">            app.image(tile, x * App.CELLSIZE, y * App.CELLSIZE + App.TOPBAR);</span>
+        }
+<span class="fc" id="L88">        spawned = true;</span>
+
+<span class="fc" id="L90">        return skipNext;</span>
+    }
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>

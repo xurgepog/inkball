@@ -1,0 +1,594 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>App.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">scaffold</a> &gt; <a href="index.source.html" class="el_package">inkball</a> &gt; <span class="el_source">App.java</span></div><h1>App.java</h1><pre class="source lang-java linenums">package inkball;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Random;
+
+import processing.core.PApplet;
+import processing.core.PImage;
+import processing.core.PVector;
+import processing.data.JSONArray;
+import processing.data.JSONObject;
+import processing.event.KeyEvent;
+import processing.event.MouseEvent;
+
+/**
+ * The main application class for the Inkball game.
+ * 
+ * This class initializes the game environment, manages the game loop, 
+ * handles user input, and coordinates interactions between game elements 
+ * such as tiles, balls, and lines. It serves as the primary interface 
+ * between the game logic and the visual representation.
+ * 
+ * Responsibilities of the App class include:
+ * - Setting up the game window and rendering graphics.
+ * - Managing game states (e.g., paused, running).
+ * - Responding to user input for controlling the game.
+ * - Updating the game state and drawing game objects each frame.
+ * 
+ * The App class extends PApplet from the Processing library, 
+ * allowing for easy rendering and handling of graphics and animation.
+*/
+public class App extends PApplet {
+
+    // Constants for cell size, board dimensions, top bar size, and window size
+    public static final int CELLSIZE = 32;
+    public static final int BOARD_WIDTH = 18;
+    public static final int BOARD_HEIGHT = 18;
+    public static final int TOPBAR = 2 * CELLSIZE;
+<span class="fc" id="L42">    public static int WIDTH = CELLSIZE * BOARD_WIDTH; // 576</span>
+<span class="fc" id="L43">    public static int HEIGHT = CELLSIZE * BOARD_HEIGHT + TOPBAR; // 640</span>
+
+    // Game configuration constants
+    public static final int FPS = 30;
+<span class="fc" id="L47">    public static String[] COLOURS = {&quot;grey&quot;, &quot;orange&quot;, &quot;blue&quot;, &quot;green&quot;, &quot;yellow&quot;};</span>
+<span class="fc" id="L48">    public static int TEXT_SIZE = 20;</span>
+
+    // Game state variables related to board setup, configuration, and level handling
+    public String configPath; // Path to configuration file
+    JSONObject config; // JSON object to hold config data
+    String[] levelLayout; // Array to hold the level layout
+    public int levelToload; // Current level to load
+    public int levelCount; // Total number of levels
+
+    // Game objects and mechanics
+    public Tile[][] board; // 2D array representing the game board with tiles
+    public Ball[] balls; // Array of balls used in the game
+    public int setBallCount; // Count of pre-set balls from the level file
+    public int[][] spawnLoc; // Spawner locations for new balls
+    public int extraBallCount; // Count of extra balls added during gameplay
+    public int spawnerCount; // Number of spawners in the current level
+    public int rightHoleCount; // Count of balls that have sunk into the correct hole
+    public int wrongHoleCount; // Count of balls that have sunk into the wrong hole
+
+    // Timer-related variables for handling game timing and spawning intervals
+    public int time; // Total time for the level
+    public int spawnInterval; // Time interval between ball spawns
+    public float elapsedTime; // Time elapsed during the game
+    public int frameCounter; // Frame counter for general timing
+    public float elapsedBallTime; // Time elapsed since last ball spawn
+    public int ballSpawnFrameCounter; // Frame counter for ball spawning
+    public boolean levelOver; // Indicates if the level is over
+    public int gameOverFrameCounter; // Frame counter for game-over animations
+    public boolean paused; // Game pause status
+
+    // Score-related variables
+    public int currScore; // Current score of the player
+    public int prevScore; // Previous score (carried over between levels)
+    public float scoreIncMod; // Multiplier for score increase
+    public float scoreDecMod; // Multiplier for score decrease
+    public int[] scoreInc; // Array storing score increments based on ball color
+    public int[] scoreDec; // Array storing score decrements based on ball color
+
+    // Variables for handling user-drawn lines
+    public ArrayList&lt;Line&gt; lines; // List of all drawn lines
+    public Line line; // Current line being drawn
+    public float prevX; // Previous X position of the mouse while drawing
+    public float prevY; // Previous Y position of the mouse while drawing
+
+    // Other general game state variables
+<span class="fc" id="L93">    public HashMap&lt;String, PImage&gt; sprites = new HashMap&lt;&gt;(); // HashMap to store preloaded images for performance</span>
+<span class="fc" id="L94">    public static Random random = new Random(); // Random object for randomness in the game</span>
+    public int prevBallsToSpawn; // Previous count of balls to spawn
+    public int movementFrameCounter; // Counter for ball movement frames
+    public boolean ctrlPressed; // Flag to track if the control key is pressed
+
+    // Constructor to initialise config file path
+<span class="fc" id="L100">    public App() {</span>
+<span class="fc" id="L101">        this.configPath = &quot;config.json&quot;;</span>
+<span class="fc" id="L102">    }</span>
+
+    /**
+     * Set up the window size based on constants.
+     */
+	@Override
+    public void settings() {
+<span class="fc" id="L109">        size(WIDTH, HEIGHT);</span>
+<span class="fc" id="L110">    }</span>
+
+    /**
+     * Load and cache sprites to avoid reloading them every frame.
+     * 
+     * @param s The name of the sprite to load.
+     * @return The loaded PImage.
+     */
+    public PImage getSprite(String s) {
+<span class="fc" id="L119">        PImage result = sprites.get(s); // Check if the image is already loaded</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (result == null) {</span>
+            try {
+                // Decode and load the image from the path
+<span class="fc" id="L123">                result = loadImage(URLDecoder.decode(this.getClass().getResource(s +&quot;.png&quot;).getPath(), StandardCharsets.UTF_8.name()));</span>
+<span class="fc" id="L124">                sprites.put(s, result); // Store the image for potential future use</span>
+<span class="nc" id="L125">            } catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L126">                throw new RuntimeException(e);</span>
+<span class="fc" id="L127">            }</span>
+        }
+<span class="fc" id="L129">        return result;</span>
+    }
+
+    /**
+     * Setup game environment and variables when the program starts.
+     */
+	@Override
+    public void setup() {
+<span class="fc" id="L137">        frameRate(FPS); // Set the frame rate</span>
+
+<span class="fc" id="L139">        board = new Tile[BOARD_HEIGHT][BOARD_WIDTH];</span>
+<span class="fc" id="L140">        levelLayout = new String[BOARD_HEIGHT];</span>
+<span class="fc" id="L141">        levelToload = 1; // Level to start from</span>
+<span class="fc" id="L142">        levelCount = 3; // Total number of levels</span>
+
+<span class="fc" id="L144">        currScore = 0;</span>
+<span class="fc" id="L145">        prevScore = 0;</span>
+<span class="fc" id="L146">        scoreInc = new int[COLOURS.length];</span>
+<span class="fc" id="L147">        scoreDec = new int[COLOURS.length];</span>
+
+<span class="fc" id="L149">        config = loadJSONObject(configPath); // Load the configuration file</span>
+<span class="fc" id="L150">        loadLevel(levelToload); // Load the first level</span>
+
+<span class="fc" id="L152">        textSize(TEXT_SIZE); // Set the text size</span>
+<span class="fc" id="L153">        fill(0); // Set the fill color to black for text</span>
+<span class="fc" id="L154">        noStroke(); // Disable outline stroke</span>
+
+        // Initialise timers and counters
+<span class="fc" id="L157">        frameCounter = 0;</span>
+<span class="fc" id="L158">        ballSpawnFrameCounter = 0;</span>
+<span class="fc" id="L159">        elapsedBallTime = 0;</span>
+<span class="fc" id="L160">        gameOverFrameCounter = 0;</span>
+<span class="fc" id="L161">        levelOver = false;</span>
+
+<span class="fc" id="L163">        prevBallsToSpawn = 0;</span>
+<span class="fc" id="L164">        movementFrameCounter = 0;</span>
+<span class="fc" id="L165">        rightHoleCount = 0;</span>
+<span class="fc" id="L166">        wrongHoleCount = 0;</span>
+
+        // Initialise line variables
+<span class="fc" id="L169">        lines = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L170">        line = null;</span>
+<span class="fc" id="L171">        ctrlPressed = false;</span>
+<span class="fc" id="L172">    }</span>
+
+    /**
+     * Load the level based on the provided level number.
+     * 
+     * @param levelNum The level number to load.
+    */
+    public void loadLevel(int levelNum) {
+<span class="fc" id="L180">        extraBallCount = 0; // Reset extra ball count</span>
+<span class="fc" id="L181">        spawnerCount = 0; // Reset spawner count</span>
+        
+        // Load the levels array from the config JSON
+<span class="fc" id="L184">        JSONArray levels = config.getJSONArray(&quot;levels&quot;);</span>
+<span class="fc" id="L185">        JSONObject level  = levels.getJSONObject(levelNum - 1); // Get the specific level to load</span>
+
+        // Load the level layout from the file
+<span class="fc" id="L188">        String levelFile = level.getString(&quot;layout&quot;);    </span>
+<span class="fc" id="L189">        levelLayout = loadStrings(levelFile); // Loads the text listed out by column</span>
+
+        // Update tiles on the board based on the level layout
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        for (int i = 0; i &lt; board.length; i++) {</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">            for (int j = 0; j &lt; board[i].length; j++) {</span>
+<span class="fc" id="L194">                board[i][j] = new Tile(levelLayout[i].charAt(j), j, i); // Initialize each tile</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">                if (levelLayout[i].charAt(j) == 'B') {</span>
+<span class="fc" id="L196">                    extraBallCount++; // Count pre-set balls in the level</span>
+                }
+<span class="fc bfc" id="L198" title="All 2 branches covered.">                else if (levelLayout[i].charAt(j) == 'S') {</span>
+<span class="fc" id="L199">                    spawnerCount++; // Count spawners in the level</span>
+                }
+            }
+        }
+
+        // Create balls to be spawned in and account for tile-specified balls
+<span class="fc" id="L205">        JSONArray ballsJson = level.getJSONArray(&quot;balls&quot;);</span>
+<span class="fc" id="L206">        setBallCount = ballsJson.size();</span>
+<span class="fc" id="L207">        balls = new Ball[extraBallCount + setBallCount]; // Initialize ball array</span>
+
+        // Assign colors to the balls
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        for (int i = 0; i &lt; ballsJson.size(); i++) {</span>
+<span class="fc" id="L211">            String ballColour = ballsJson.getString(i);</span>
+<span class="fc" id="L212">            char ballType = '0';</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">            for (int j = 0; j &lt; COLOURS.length; j++) {</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">                if (ballColour.equals(COLOURS[j])) {</span>
+<span class="fc" id="L215">                    ballType = (char) (j + '0'); // Assign color type based on the index</span>
+                }
+            }
+<span class="fc" id="L218">            balls[i + extraBallCount] = new Ball(ballType); // Add ball to the array</span>
+        }
+<span class="fc" id="L220">        extraBallCount = 0; // Reset, as extra ball count will be recounted when spawning default balls</span>
+
+        // Save locations of spawners on the board
+<span class="fc" id="L223">        spawnLoc = new int[spawnerCount][2]; // Array to hold spawner coordinates</span>
+<span class="fc" id="L224">        int spawnersFilled = 0;</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">        for (int i = 0; i &lt; board.length; i++) {</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">            for (int j = 0; j &lt; board[i].length; j++) {</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">                if (levelLayout[i].charAt(j) == 'S') {</span>
+<span class="fc" id="L228">                    spawnLoc[spawnersFilled][0] = j;</span>
+<span class="fc" id="L229">                    spawnLoc[spawnersFilled][1] = i;</span>
+<span class="fc" id="L230">                    spawnersFilled++;</span>
+                }
+            }
+        }
+
+        // Set the time limit for the level
+        try {
+<span class="fc" id="L237">            time = level.getInt(&quot;time&quot;);</span>
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">            if (time &lt; 0) {</span>
+<span class="nc" id="L239">                time = -1; // -1 is flag for infinite time</span>
+            }
+<span class="nc" id="L241">        } catch (Exception e) {</span>
+<span class="nc" id="L242">            time = -1;</span>
+<span class="fc" id="L243">        }        </span>
+        
+<span class="fc" id="L245">        spawnInterval = level.getInt(&quot;spawn_interval&quot;);</span>
+<span class="fc" id="L246">        elapsedTime = 0;</span>
+
+        // Set score modifiers based on level configuration
+<span class="fc" id="L249">        scoreIncMod = level.getFloat(&quot;score_increase_from_hole_capture_modifier&quot;);</span>
+<span class="fc" id="L250">        scoreDecMod = level.getFloat(&quot;score_decrease_from_wrong_hole_modifier&quot;);</span>
+<span class="fc" id="L251">        JSONObject scoreIncJson = config.getJSONObject(&quot;score_increase_from_hole_capture&quot;);        </span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">        for (int i = 0; i &lt; scoreInc.length; i++) {</span>
+<span class="fc" id="L253">            scoreInc[i] = (int) (scoreIncJson.getInt(COLOURS[i]) * scoreIncMod); // Set score increment values</span>
+        }
+<span class="fc" id="L255">        JSONObject scoreDecJson = config.getJSONObject(&quot;score_increase_from_hole_capture&quot;);        </span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">        for (int i = 0; i &lt; scoreDec.length; i++) {</span>
+<span class="fc" id="L257">            scoreDec[i] = (int) (scoreDecJson.getInt(COLOURS[i]) * scoreDecMod); // Set score decrement values</span>
+        }
+<span class="fc" id="L259">    }</span>
+
+    /**
+     * Handles key press events.
+     * 
+     * @param event the KeyEvent that triggered this method
+    */
+	@Override
+    public void keyPressed(KeyEvent event){
+<span class="fc bfc" id="L268" title="All 2 branches covered.">        if (keyCode == CONTROL) {</span>
+<span class="fc" id="L269">            ctrlPressed = true;</span>
+        }
+<span class="fc" id="L271">    }</span>
+
+    /**
+     * Handles key release events.
+     * 
+     * @param event the KeyEvent that triggered this method
+    */
+	@Override
+    public void keyReleased(KeyEvent event){
+<span class="fc bfc" id="L280" title="All 2 branches covered.">        if (!levelOver) {</span>
+<span class="pc bpc" id="L281" title="1 of 4 branches missed.">            if (event.getKey() == 'r' || event.getKey() == 'R') {</span>
+<span class="fc" id="L282">                reset();</span>
+            }
+<span class="fc bfc" id="L284" title="All 2 branches covered.">            else if (event.getKey() == ' ') {</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">                paused = !paused;</span>
+            }
+        }
+<span class="fc bfc" id="L288" title="All 2 branches covered.">        else if (levelToload == levelCount) { // allows resetting before all points added (should it be changed?)</span>
+<span class="pc bpc" id="L289" title="3 of 4 branches missed.">            if (event.getKey() == 'r' || event.getKey() == 'R') {</span>
+<span class="fc" id="L290">                levelToload = 1;</span>
+<span class="fc" id="L291">                prevScore = 0;</span>
+<span class="fc" id="L292">                reset();</span>
+            }
+        }
+<span class="fc bfc" id="L295" title="All 2 branches covered.">        if (keyCode == CONTROL) {</span>
+<span class="fc" id="L296">            ctrlPressed = false;</span>
+        }
+<span class="fc" id="L298">    }</span>
+
+    /**
+     * Handles mouse press events.
+     * 
+     * @param e the MouseEvent that triggered this method
+    */
+    @Override
+    public void mousePressed(MouseEvent e) {
+<span class="pc bpc" id="L307" title="1 of 4 branches missed.">        if (!paused &amp;&amp; !levelOver) {</span>
+            // Right-click to remove a line
+<span class="pc bpc" id="L309" title="1 of 6 branches missed.">            if (mouseButton == RIGHT || (mouseButton == LEFT &amp;&amp; ctrlPressed)) {</span>
+                PVector[] mouseClose;
+<span class="fc bfc" id="L311" title="All 2 branches covered.">                for (Line l : lines) {</span>
+<span class="fc" id="L312">                    mouseClose = l.isNearLine(mouseX, mouseY, 5);</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">                    if (mouseClose != null) {</span>
+<span class="fc" id="L314">                        lines.remove(l);</span>
+<span class="fc" id="L315">                        break;</span>
+                    }
+<span class="fc" id="L317">                }</span>
+            }
+            // Left-click to add line
+<span class="fc bfc" id="L320" title="All 2 branches covered.">            else if (mouseButton == LEFT) {</span>
+<span class="fc" id="L321">                prevX = mouseX;</span>
+<span class="fc" id="L322">                prevY = mouseY;</span>
+<span class="fc" id="L323">                line = new Line();</span>
+<span class="fc" id="L324">                lines.add(line);</span>
+            }
+        }        
+<span class="fc" id="L327">    }</span>
+    
+    /**
+     * Handles mouse dragged events.
+     * 
+     * @param e the MouseEvent that triggered this method
+    */
+	@Override
+    public void mouseDragged(MouseEvent e) {
+        // add line segments to player-drawn line object if left mouse button is held
+		
+		// remove player-drawn line object if right mouse button is held 
+		// and mouse position collides with the line
+<span class="pc bpc" id="L340" title="1 of 4 branches missed.">        if (!paused &amp;&amp; !levelOver) {</span>
+<span class="pc bpc" id="L341" title="2 of 4 branches missed.">            if (mouseButton == LEFT &amp;&amp; !ctrlPressed) {</span>
+<span class="fc" id="L342">                line.addSegment(prevX, prevY, mouseX, mouseY);</span>
+<span class="fc" id="L343">                prevX = mouseX;</span>
+<span class="fc" id="L344">                prevY = mouseY; </span>
+            }   
+        }
+<span class="fc" id="L347">    }</span>
+
+    /**
+     * Handles mouse release events.
+     * 
+     * @param e the MouseEvent that triggered this method
+    */
+    @Override
+    public void mouseReleased(MouseEvent e) {
+<span class="fc" id="L356">        line = null; // for checking its been set</span>
+<span class="fc" id="L357">    }</span>
+
+    /**
+     * Handles the display of time-related messages in the game, including the countdown timer,
+     * pause status, and messages for when the time is up.
+     *
+     * &lt;p&gt;This method checks the game's current time settings and updates the displayed messages 
+     * accordingly. It considers whether the game is paused and if the time has run out. 
+     * The method also formats the positioning of the messages on the screen based on the specified 
+     * horizontal and vertical gaps.&lt;/p&gt;
+     *
+     * @param time         The remaining time for the level. A value of -1 indicates infinite time.
+     * @param elapsedTime  The amount of time that has passed since the start of the level.
+     * @param levelOver    A boolean indicating whether the level is over.
+     * @param message      A string to hold the message to be displayed. This will be updated 
+     *                     based on the game's current time state.
+     * @param textHoriGap  The horizontal gap used for positioning the text.
+     * @param textVertGap  The vertical gap used for positioning the text.
+    */
+    public void handleTimeMessages(int time, float elapsedTime, boolean levelOver, int textHoriGap, int textVertGap) {
+        // If time is set (not infinite)
+        String message;
+<span class="fc bfc" id="L379" title="All 2 branches covered.">        if (time != -1) {</span>
+            // If time up
+<span class="fc bfc" id="L381" title="All 4 branches covered.">            if (time - elapsedTime &lt;= 0 &amp;&amp; !levelOver) {</span>
+<span class="fc" id="L382">                message = &quot;=== TIME'S UP ===&quot;;</span>
+<span class="fc" id="L383">                text(message, (int) ((WIDTH*0.5) - (textWidth(message)*0.5) + TEXT_SIZE), (int) (TOPBAR*0.5 + TEXT_SIZE*0.5));</span>
+<span class="fc" id="L384">                paused = true;</span>
+            }
+            // If paused
+<span class="fc bfc" id="L387" title="All 2 branches covered.">            else if (paused) {</span>
+<span class="fc" id="L388">                message = &quot;*** PAUSED ***&quot;;</span>
+<span class="fc" id="L389">                text(message, (int) ((WIDTH*0.5) - (textWidth(message)*0.5) + TEXT_SIZE), (int) (TOPBAR*0.5 + TEXT_SIZE*0.5));</span>
+            }
+<span class="fc" id="L391">            message = &quot;Time: &quot;;</span>
+<span class="fc" id="L392">            text(message, WIDTH - (textHoriGap + textWidth(message)), (int) (textVertGap*1.5) + TEXT_SIZE); // consider if text is drawn from bottom for score and time</span>
+<span class="fc" id="L393">            text((int) (time - elapsedTime), WIDTH - textHoriGap, (int) (textVertGap*1.5) + TEXT_SIZE);</span>
+        }
+        // If infinite time can still pause
+<span class="pc bpc" id="L396" title="1 of 2 branches missed.">        else if (paused) {</span>
+<span class="fc" id="L397">            message = &quot;*** PAUSED ***&quot;;</span>
+<span class="fc" id="L398">            text(message, (int) ((WIDTH*0.5) - (textWidth(message)*0.5) + TEXT_SIZE), (int) (TOPBAR*0.5 + TEXT_SIZE*0.5));</span>
+        }
+<span class="fc" id="L400">    }</span>
+    
+    /**
+     * Handles the behavior when a level is over, including score management, animation of tiles,
+     * and transitioning to the next level if applicable.
+     *
+     * &lt;p&gt;This method updates the game's state when the current level has ended. It manages 
+     * score increments based on time elapsed, animates the yellow tiles at the edges of the 
+     * game board, and checks if the game has reached its conclusion.&lt;/p&gt;
+     *
+     * @param levelOver A boolean indicating whether the level is over. If true, 
+     *                  the method will execute the relevant actions for the end of the level.
+    */
+    public void levelOver(boolean levelOver){
+        String message;
+<span class="fc bfc" id="L415" title="All 2 branches covered.">        if (levelOver) {</span>
+<span class="fc" id="L416">            paused = false;</span>
+            // Every 0.067 seconds will move yellow tiles and increase score
+<span class="pc bpc" id="L418" title="2 of 6 branches missed.">            if (gameOverFrameCounter % 2 == 0 &amp;&amp; (time != -1 &amp;&amp; time - elapsedTime &gt; 0)) {</span>
+<span class="fc" id="L419">                currScore += 1;</span>
+<span class="fc" id="L420">                frameCounter += FPS;</span>
+            }
+
+            // Move the two yellow tiles around edges
+<span class="pc bpc" id="L424" title="1 of 2 branches missed.">            if (gameOverFrameCounter % (18 * 2) &lt; BOARD_WIDTH) {</span>
+<span class="fc" id="L425">                image(getSprite(&quot;wall4&quot;), gameOverFrameCounter%BOARD_WIDTH * App.CELLSIZE, 0 * App.CELLSIZE + App.TOPBAR);</span>
+<span class="fc" id="L426">                image(getSprite(&quot;wall4&quot;), ((BOARD_WIDTH - 1) - gameOverFrameCounter%BOARD_WIDTH) * App.CELLSIZE, (BOARD_HEIGHT - 1) * App.CELLSIZE + App.TOPBAR);</span>
+            }
+<span class="nc bnc" id="L428" title="All 2 branches missed.">            else if (gameOverFrameCounter % (18 * 2) &lt; BOARD_WIDTH*2) {</span>
+<span class="nc" id="L429">                image(getSprite(&quot;wall4&quot;), (BOARD_WIDTH - 1) * App.CELLSIZE, gameOverFrameCounter%BOARD_HEIGHT * App.CELLSIZE + App.TOPBAR);</span>
+<span class="nc" id="L430">                image(getSprite(&quot;wall4&quot;), 0 * App.CELLSIZE, ((BOARD_HEIGHT - 1) - gameOverFrameCounter%BOARD_HEIGHT) * App.CELLSIZE + App.TOPBAR);</span>
+            }
+
+            // Increase score until time runs out
+<span class="fc bfc" id="L434" title="All 2 branches covered.">            if (time - elapsedTime &lt;= 0) {</span>
+<span class="pc bpc" id="L435" title="1 of 2 branches missed.">                if (levelToload == levelCount) {</span>
+<span class="nc" id="L436">                    message = &quot;=== ENDED ===&quot;;</span>
+<span class="nc" id="L437">                    text(message, (int) ((WIDTH*0.5) - (textWidth(message)*0.5) + TEXT_SIZE), (int) (TOPBAR*0.5 + TEXT_SIZE*0.5));</span>
+                }
+                else {
+<span class="fc" id="L440">                    prevScore = currScore;</span>
+<span class="fc" id="L441">                    levelToload++;</span>
+<span class="fc" id="L442">                    reset();</span>
+                }
+            }
+<span class="fc" id="L445">            gameOverFrameCounter++;</span>
+        }
+<span class="fc" id="L447">    }</span>
+
+    /**
+     * Main draw loop that gets called repeatedly by Processing.
+     * Handles game state updates, rendering, and user interactions.
+    */
+	@Override
+    public void draw() {
+<span class="fc" id="L455">        background(200, 200, 200); // Clear background</span>
+
+        // text placement
+<span class="fc" id="L458">        int textHoriGap = 60;</span>
+<span class="fc" id="L459">        int textVertGap = 25;</span>
+        String message;
+
+        // Drawing score
+<span class="fc" id="L463">        message = &quot;Score: &quot;;</span>
+<span class="fc" id="L464">        text(message, WIDTH - (textHoriGap + textWidth(message)), textVertGap);</span>
+<span class="fc" id="L465">        text(currScore, WIDTH - textHoriGap, textVertGap);</span>
+
+        // Drawing time
+<span class="fc bfc" id="L468" title="All 4 branches covered.">        if (!paused &amp;&amp; !levelOver) {</span>
+<span class="fc" id="L469">            frameCounter++;</span>
+        }
+<span class="fc" id="L471">        elapsedTime = (float) frameCounter / FPS;</span>
+<span class="fc" id="L472">        elapsedBallTime = (float) ballSpawnFrameCounter / FPS;</span>
+
+<span class="fc" id="L474">        handleTimeMessages(time, elapsedTime, levelOver, textHoriGap, textVertGap);</span>
+
+        // Drawing tiles
+<span class="fc bfc" id="L477" title="All 2 branches covered.">        for (int i = 0; i &lt; board.length; i++) {</span>
+<span class="fc bfc" id="L478" title="All 2 branches covered.">            for (int j = 0; j &lt; board[i].length; j++) {</span>
+<span class="fc" id="L479">                Tile t = board[i][j];                </span>
+<span class="fc bfc" id="L480" title="All 2 branches covered.">                if (t.draw(this)) {</span>
+<span class="fc" id="L481">                    j++;</span>
+                }
+            }
+        }        
+
+        // Drawing active balls
+<span class="fc" id="L487">        int ballsToSpawn = (int) elapsedBallTime / spawnInterval + extraBallCount;</span>
+
+<span class="fc bfc" id="L489" title="All 2 branches covered.">        for (int i = 0; i &lt; ballsToSpawn - rightHoleCount - wrongHoleCount; i++) { // drawing all balls</span>
+<span class="fc" id="L490">            Ball b = balls[i];</span>
+<span class="fc" id="L491">            b.draw(this); </span>
+        }
+
+        // Drawing upcoming balls
+<span class="fc" id="L495">        int ballGap = 6;</span>
+<span class="fc" id="L496">        int ballDiameter = (int) balls[0].radius * 2;</span>
+<span class="fc" id="L497">        int rectX = 10;</span>
+<span class="fc" id="L498">        rect(rectX , CELLSIZE / 2, ballGap*6 + ballDiameter*5, ballGap*2 + ballDiameter); // x, y, w, h</span>
+        
+        // Allowing slide animation (1px/f) when a ball spawns
+<span class="pc bpc" id="L501" title="1 of 2 branches missed.">        movementFrameCounter = (prevBallsToSpawn != ballsToSpawn) ? movementFrameCounter + 1 : 0; // note that smallest spawn interval is 2 seconds due to the slide</span>
+<span class="fc" id="L502">        int movementCalc = 0;</span>
+<span class="pc bpc" id="L503" title="1 of 2 branches missed.">        if (prevBallsToSpawn &lt; ballsToSpawn) {</span>
+<span class="fc" id="L504">            movementCalc = ballDiameter + ballGap - movementFrameCounter; // moves ball 1px/f to new pos using this offset from new pos</span>
+        }
+<span class="pc bpc" id="L506" title="1 of 2 branches missed.">        if (movementCalc == 0) {</span>
+<span class="nc" id="L507">            prevBallsToSpawn = ballsToSpawn;</span>
+        }
+
+        // Draw the upcoming balls
+<span class="fc" id="L511">        int ballsToShow = 0;</span>
+<span class="fc" id="L512">        int ballsLeft = 0;</span>
+<span class="fc bfc" id="L513" title="All 2 branches covered.">        for (int i = 0; i &lt; balls.length; i++) {</span>
+<span class="pc bpc" id="L514" title="1 of 2 branches missed.">            if (!balls[i].spawned) {</span>
+<span class="nc bnc" id="L515" title="All 2 branches missed.">                if (ballsToShow &lt; 5) {</span>
+<span class="nc" id="L516">                    image(getSprite(&quot;ball&quot; + balls[i].colour), ((ballDiameter + ballGap)*ballsToShow) + movementCalc + rectX + ballGap, (CELLSIZE / 2) + ballGap);</span>
+<span class="nc" id="L517">                    ballsToShow++;</span>
+                }
+<span class="nc" id="L519">                ballsLeft++;</span>
+            }
+        }
+        // Increase time until next ball if any remain
+<span class="pc bpc" id="L523" title="3 of 4 branches missed.">        if (ballsLeft &gt; 0 &amp;&amp; !paused){</span>
+<span class="nc" id="L524">            ballSpawnFrameCounter++;</span>
+        }
+        
+        // Draw timer until next ball
+<span class="fc" id="L528">        fill(200, 200, 200);</span>
+<span class="fc" id="L529">        rect(rectX + ballGap*6 + ballDiameter*5, CELLSIZE / 2, ballGap*2 + ballDiameter, ballGap*2 + ballDiameter); // covers new ball to slide in from right</span>
+<span class="fc" id="L530">        fill(0);</span>
+<span class="pc bpc" id="L531" title="1 of 2 branches missed.">        if (ballsLeft != 0) {</span>
+<span class="nc" id="L532">            String timeToBall = String.format(&quot;%.1f&quot;, spawnInterval - (elapsedBallTime % spawnInterval));</span>
+<span class="nc" id="L533">            text(timeToBall, rectX*2 + ballGap*6 + ballDiameter*5, (int) (TOPBAR*0.5 + TEXT_SIZE*0.5));</span>
+        }
+
+        // Draw lines
+<span class="pc bpc" id="L537" title="1 of 2 branches missed.">        for (Line l : lines) {</span>
+<span class="nc" id="L538">            l.draw(this);</span>
+<span class="nc" id="L539">        }</span>
+
+        // Check if level is over
+<span class="fc" id="L542">        levelOver = true;</span>
+<span class="pc bpc" id="L543" title="1 of 2 branches missed.">        for (int i = 0; i &lt; balls.length; i++) { // shows balls in queue</span>
+<span class="pc bpc" id="L544" title="1 of 2 branches missed.">            if (!balls[i].sunk) {</span>
+<span class="fc" id="L545">                levelOver = false;</span>
+<span class="fc" id="L546">                break;</span>
+            }
+        }
+
+        // If level over
+<span class="fc" id="L551">        levelOver(levelOver);</span>
+<span class="fc" id="L552">    }</span>
+
+    /**
+     * Reset the game state to prepare for the next level or a replay.
+    */
+    public void reset() {
+        // Reset timers
+<span class="fc" id="L559">        frameCounter = 0;</span>
+<span class="fc" id="L560">        ballSpawnFrameCounter = 0;</span>
+<span class="fc" id="L561">        elapsedBallTime = 0;</span>
+<span class="fc" id="L562">        gameOverFrameCounter = 0;</span>
+
+        // Reset balls
+<span class="fc" id="L565">        prevBallsToSpawn = 0;</span>
+<span class="fc" id="L566">        movementFrameCounter = 0;</span>
+<span class="fc" id="L567">        rightHoleCount = 0;</span>
+<span class="fc" id="L568">        wrongHoleCount = 0;</span>
+
+        // Reset game status
+<span class="fc" id="L571">        paused = false;</span>
+<span class="fc" id="L572">        levelOver = false;</span>
+
+        // Reset score
+<span class="fc" id="L575">        currScore = prevScore;</span>
+
+        // Reset lines
+<span class="fc" id="L578">        lines = new ArrayList&lt;Line&gt;();</span>
+<span class="fc" id="L579">        line = null;</span>
+
+        // Reload the specified level layout and reset the score
+<span class="fc" id="L582">        loadLevel(levelToload);    </span>
+<span class="fc" id="L583">    }</span>
+
+    /**
+     * Entry point to the application.
+     * @param args Arguments provided at runtime (if any).
+     */
+    public static void main(String[] args) {
+<span class="nc" id="L590">        PApplet.main(&quot;inkball.App&quot;);</span>
+<span class="nc" id="L591">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.12.202403310830</span></div></body></html>
