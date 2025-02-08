@@ -1,6 +1,6 @@
 # Inkball
 
-Inkball is a recreation of the ***Windows Vista game**, developed as part of a University of Sydney assignment. The game involves drawing lines to guide balls into the correct holes while following specific game mechanics. It features similar visuals and mechanics to the original game.
+Inkball is a recreation of the **Windows Vista game**, developed as part of a University of Sydney assignment. The game involves drawing lines to guide balls into the correct holes while following specific game mechanics. It features similar visuals and mechanics to the original game.
 
 This project runs on Gradle and supports level customization through configuration files.
 
