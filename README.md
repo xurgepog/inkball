@@ -4,6 +4,8 @@ Inkball is a recreation of the **Windows Vista game**, developed as part of a Un
 
 This project runs on Gradle and supports level customization through configuration files.
 
+Processing was used to handle the graphics, and JUnit for the testing.
+
 ## Getting Started
 
 ### Prerequisites
