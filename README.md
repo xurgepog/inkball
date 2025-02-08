@@ -21,7 +21,7 @@ gradle run
 - Update the `level count` variable in the `setup()` function within `App.java` to reflect the new number of levels.
 
 ### Additional Features
-- The project includes Javadoc documentation.
+- The project allows for Javadoc documentation to be generated.
 - `report-jacoco` is used for test coverage as part of the assignment requirements.
 
 ## Gameplay Instructions
